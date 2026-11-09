@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>모의 수강신청</title>
+
+<!-- =====================================================
+     CSS 구역 : 화면 모양(색, 배치, 크기)을 정하는 곳
+     ===================================================== -->
+<style>
+  /* 공통 색상 변수 : 한 곳에서 색을 바꾸면 전체에 적용됨 */
+  :root {
+    --main: #1f4e8c;        /* 메인 파란색 */
+    --main-light: #e8eef7;  /* 연한 파란 배경 */
+    --border: #c9d3e0;      /* 테두리 색 */
+    --text: #222;
+    --ok: #1e8e3e;          /* 성공 초록 */
+    --fail: #c62828;        /* 실패 빨강 */
+    --warn: #e08a00;        /* 주의 주황 */
+    --bg: #f4f6f9;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--bg);
+  }
+
+  /* 상단 제목 바 */
+  header {
+    background: var(--main);
+    color: #fff;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  header span { font-size: 13px; opacity: .85; }
+
+  /* 카운트다운 영역 */
+  .timer-box {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+  #timer {
+    font-size: 32px;
+    font-weight: bold;
+    font-family: Consolas, monospace;
+    min-width: 140px;
+    color: var(--main);
+  }
+  #timer.open { color: var(--ok); }
+  #status { font-weight: bold; }
+
+  /* 상단 검색창 */
+  .search-bar {
+    padding: 12px 20px;
+    background: var(--main-light);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .search-bar input, .search-bar select {
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 14px;
+    background: #fff;
+  }
+  #searchInput { flex: 1; min-width: 160px; }
+  #codeInput { width: 140px; }
+
+  /* 버튼 공통 */
+  button {
+    padding: 7px 12px;
+    border: none;
+    border-radius: 4px;
+    background: var(--main);
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:disabled { background: #a9b4c2; cursor: not-allowed; }
+  button.gray { background: #6b7785; }
+  button.line { background: #fff; color: var(--main); border: 1px solid var(--main); }
+  button.apply { background: var(--ok); font-weight: bold; }
+
+  /* 가운데(과목표) + 오른쪽(관심과목/신청내역) 배치 */
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 460px;
+    gap: 16px;
+    padding: 16px 20px;
+  }
+
+  .panel {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    margin: 0 0 10px;
+    font-size: 15px;
+    color: var(--main);
+    border-bottom: 2px solid var(--main);
+    padding-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .panel h2 small { font-weight: normal; color: #555; }
+
+  /* 과목 목록 표 */
+  .table-wrap { overflow-x: auto; }   /* 좁은 화면에서 표만 옆으로 스크롤 */
+  table { width: 100%; border-collapse: collapse; min-width: 600px; }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 7px;
+    text-align: center;
+  }
+  th { background: var(--main-light); }
+  td.closed { color: var(--fail); font-weight: bold; }
+  tr.in-wish td { background: #fffbe6; }   /* 관심과목에 담긴 줄 강조 */
+
+  /* 경쟁률 색 표시 */
+  .rate-high { color: var(--fail); font-weight: bold; }
+  .rate-mid  { color: var(--warn); font-weight: bold; }
+  .rate-low  { color: var(--ok); }
+
+  /* 관심과목 목록 (크게 보이도록) */
+  #wishPanel { border: 2px solid var(--main); }
+  #wishPanel h2 { font-size: 18px; }
+  #wishList { min-height: 420px; }   /* 7개가 다 들어가는 높이 */
+  .wish-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 4px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .wish-item:last-child { border-bottom: none; }
+  .wish-info b { display: block; font-size: 16px; margin-bottom: 3px; }
+  .wish-info span { font-size: 13px; color: #666; }
+  .wish-item button {
+    padding: 12px 20px;
+    font-size: 15px;
+    min-width: 92px;
+  }
+  .empty { color: #888; padding: 8px 0; }
+
+  /* 추천 순서, 신청 내역 리스트 */
+  ol, ul { margin: 0; padding-left: 20px; }
+  li { margin: 6px 0; }
+  .ok { color: var(--ok); font-weight: bold; }
+  .fail { color: var(--fail); font-weight: bold; }
+  .hint { color: #666; font-size: 12px; margin-top: 8px; }
+
+  /* 모바일 화면(폭 768px 이하)에서는 세로로 쌓기 */
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; padding: 12px; }
+    header, .timer-box, .search-bar { padding-left: 12px; padding-right: 12px; }
+    #timer { font-size: 26px; }
+    #codeInput { flex: 1; }
+    aside { order: -1; }   /* 모바일에서는 관심과목을 위로 */
+    #wishList { min-height: auto; }
+  }
+</style>
+</head>
+
+<body>
+<!-- =====================================================
+     HTML 구역 : 화면에 무엇이 있는지(뼈대)를 정하는 곳
+     ===================================================== -->
+
+<!-- 상단 제목 -->
+<header>
+  <h1>모의 수강신청</h1>
+  <span>연습용 사이트 · 실제 신청 아님</span>
+</header>
+
+<!-- 카운트다운 영역 -->
+<div class="timer-box">
+  <div id="timer">--.-</div>
+  <button id="startBtn">연습 시작 (10초 후 오픈)</button>
+  <button id="resetBtn" class="gray">다시 하기</button>
+  <span id="status">관심과목을 담고 연습 시작을 눌러주세요.</span>
+</div>
+
+<!-- 상단 검색창 + 분류 필터 + 과목코드 직접 입력 -->
+<div class="search-bar">
+  <input id="searchInput" type="text" placeholder="과목명 또는 과목코드 검색">
+  <select id="typeFilter">
+    <option value="">전체</option>
+    <option value="전공">전공</option>
+    <option value="교양">교양</option>
+  </select>
+  <input id="codeInput" type="text" placeholder="과목코드 입력">
+  <button id="codeBtn" disabled>코드로 신청</button>
+</div>
+
+<div class="layout">
+  <!-- 가운데 : 전체 과목 목록 표 -->
+  <section class="panel">
+    <h2>개설 과목 목록 <small id="courseCount"></small></h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>과목코드</th>
+            <th>구분</th>
+            <th>과목명</th>
+            <th>시간</th>
+            <th>정원</th>
+            <th>남은 자리</th>
+            <th>경쟁률</th>
+            <th>관심/신청</th>
+          </tr>
+        </thead>
+        <tbody id="courseTable"></tbody>
+      </table>
+    </div>
+    <p class="hint">※ 경쟁률이 높은 과목일수록 자리가 빨리 마감됩니다. 빨강 = 높음, 주황 = 보통, 초록 = 낮음</p>
+  </section>
+
+  <!-- 오른쪽 : 관심과목 + 추천 순서 + 신청 내역 -->
+  <aside>
+    <div class="panel" id="wishPanel">
+      <h2>관심과목 <small id="wishCount">0 / 7</small></h2>
+      <div id="wishList"></div>
+      <p class="hint">연습이 시작되면 여기서 바로 신청할 수 있어요.</p>
+    </div>
+    <div class="panel">
+      <h2>추천 신청 순서</h2>
+      <ol id="recommendList"></ol>
+      <p class="hint">빨리 마감되는 과목(경쟁률 높은 순)부터 신청하세요.</p>
+    </div>
+    <div class="panel">
+      <h2>신청 내역</h2>
+      <ul id="resultList"></ul>
+      <p id="summary" class="hint"></p>
+    </div>
+  </aside>
+</div>
+
+<!-- =====================================================
+     JavaScript 구역 : 버튼, 타이머 등 움직이는 기능
+     ===================================================== -->
+<script>
+  // ---------- 1. 연습용 가짜 과목 데이터 ----------
+  // type : 전공/교양, time : 수업 시간, rate : 예상 경쟁률 (높을수록 빨리 마감)
+  const courses = [
+    { code: "CSE1001", type: "전공", name: "컴퓨터프로그래밍", time: "월3,수3", seats: 40, rate: 4.8 },
+    { code: "CSE1002", type: "전공", name: "자료구조",         time: "화2,목2", seats: 35, rate: 3.9 },
+    { code: "MAT1003", type: "전공", name: "미적분학",         time: "월1,수1", seats: 50, rate: 2.1 },
+    { code: "MAT1004", type: "전공", name: "선형대수",         time: "화4,목4", seats: 45, rate: 1.8 },
+    { code: "PHY1005", type: "전공", name: "일반물리학",       time: "월5,수5", seats: 40, rate: 2.8 },
+    { code: "ECO1006", type: "전공", name: "경제학원론",       time: "화3,목3", seats: 35, rate: 6.2 },
+    { code: "BIZ1007", type: "전공", name: "경영학원론",       time: "금1,금2", seats: 30, rate: 5.1 },
+    { code: "PSY1008", type: "교양", name: "심리학개론",       time: "월4,수4", seats: 30, rate: 5.6 },
+    { code: "KOR1009", type: "교양", name: "대학글쓰기",       time: "화1,목1", seats: 35, rate: 3.5 },
+    { code: "ENG1010", type: "교양", name: "교양영어",         time: "월2,수2", seats: 45, rate: 1.4 },
+    { code: "PHI1011", type: "교양", name: "철학의 이해",      time: "화5,목5", seats: 40, rate: 1.2 },
+    { code: "ART1012", type: "교양", name: "영화와 사회",      time: "금3,금4", seats: 25, rate: 7.4 },
+    { code: "HIS1013", type: "교양", name: "한국사의 이해",    time: "수6,금5", seats: 50, rate: 2.4 },
+    { code: "SPT1014", type: "교양", name: "골프",             time: "목6,목7", seats: 20, rate: 8.0 },
+    { code: "MUS1015", type: "교양", name: "음악의 이해",      time: "월6,수7", seats: 40, rate: 3.0 },
+  ];
+
+  // 과목마다 오픈 후 몇 ms 뒤에 마감되는지 계산 (경쟁률이 높을수록 짧음)
+  // 예) 경쟁률 8.0 → 약 1.5초, 1.2 → 10초
+  courses.forEach(c => { c.closeAt = Math.round(12000 / c.rate); });
+
+  // ---------- 2. 상태를 저장하는 변수들 ----------
+  const MAX_WISH = 7;           // 관심과목 최대 개수
+  const COUNTDOWN_MS = 10000;   // 카운트다운 길이 (10초)
+  let wish = loadWish();        // 관심과목 코드 목록
+  let openTime = null;          // 신청이 열리는 순간 (performance.now 기준)
+  let started = false;          // 연습이 시작됐는지 (관심과목 수정 잠금)
+  let isOpen = false;           // 신청이 열렸는지 여부
+  let applied = {};             // 신청 결과 저장 { 과목코드: {ok, ms} }
+  let frameId = null;           // 화면 갱신 반복 번호 (멈출 때 사용)
+
+  // 자주 쓰는 화면 요소 가져오기
+  const timerEl   = document.getElementById("timer");
+  const statusEl  = document.getElementById("status");
+  const tableEl   = document.getElementById("courseTable");
+  const wishEl    = document.getElementById("wishList");
+  const startBtn  = document.getElementById("startBtn");
+  const codeBtn   = document.getElementById("codeBtn");
+  const codeInput = document.getElementById("codeInput");
+
+  // 코드로 과목 찾기
+  const findCourse = code => courses.find(c => c.code === code.toUpperCase());
+
+  // 경쟁률에 따라 색 클래스 정하기
+  const rateClass = r => r >= 5 ? "rate-high" : r >= 3 ? "rate-mid" : "rate-low";
+
+  // ---------- 3. 관심과목 저장/불러오기 (브라우저에 기억) ----------
+  function loadWish() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("mockWish") || "[]");
+      return saved.filter(code => courses.some(c => c.code === code)).slice(0, MAX_WISH);
+    } catch (e) { return []; }
+  }
+  function saveWish() {
+    try { localStorage.setItem("mockWish", JSON.stringify(wish)); } catch (e) {}
+  }
+
+  // ---------- 4. 관심과목 담기 / 빼기 ----------
+  function toggleWish(code) {
+    if (started) return;   // 연습 중에는 수정 불가
+    if (wish.includes(code)) {
+      wish = wish.filter(x => x !== code);
+    } else {
+      if (wish.length >= MAX_WISH) { alert(`관심과목은 최대 ${MAX_WISH}개까지 담을 수 있어요.`); return; }
+      wish.push(code);
+    }
+    saveWish();
+    drawAll();
+  }
+
+  // ---------- 5. 남은 자리 계산 ----------
+  // 오픈 후 시간이 지날수록 자리가 줄어들고, closeAt 시점에 0이 됨
+  function seatsLeft(c) {
+    if (!isOpen) return c.seats;
+    const passed = performance.now() - openTime;
+    const left = Math.ceil(c.seats * (1 - passed / c.closeAt));
+    return Math.max(0, left);
+  }
+
+  // 과목 하나의 버튼 상태 정하기 (표와 관심과목 패널이 같이 사용)
+  function buttonState(c) {
+    const inWish = wish.includes(c.code);
+    const done = applied[c.code];
+    if (!started) return inWish ? { label: "빼기", cls: "line", disabled: false }
+                                : { label: "담기", cls: "", disabled: false };
+    if (!inWish)  return { label: "-", cls: "", disabled: true };
+    if (done)     return { label: done.ok ? "신청완료" : "실패", cls: "", disabled: true };
+    if (!isOpen)  return { label: "대기", cls: "", disabled: true };
+    if (seatsLeft(c) === 0) return { label: "마감", cls: "", disabled: true };
+    return { label: "신청", cls: "apply", disabled: false };
+  }
+
+  // 버튼 하나를 상태에 맞게 바꾸기 (바뀐 게 있을 때만 수정 → 클릭이 끊기지 않음)
+  function setButton(btn, s) {
+    if (!btn) return;
+    if (btn.textContent !== s.label) btn.textContent = s.label;
+    if (btn.disabled !== s.disabled) btn.disabled = s.disabled;
+    if (btn.className !== s.cls) btn.className = s.cls;
+  }
+
+  // ---------- 6. 전체 과목 표 그리기 ----------
+  // 표의 줄(행)은 검색·담기 때만 새로 만들고,
+  // 타이머가 돌 때는 숫자와 버튼만 바꿔서 버튼이 사라지지 않게 함
+  function drawTable() {
+    const keyword = document.getElementById("searchInput").value.trim().toLowerCase();
+    const type = document.getElementById("typeFilter").value;
+
+    const list = courses.filter(c =>
+      (c.name.toLowerCase().includes(keyword) || c.code.toLowerCase().includes(keyword)) &&
+      (!type || c.type === type));
+
+    document.getElementById("courseCount").textContent = `${list.length}개 과목`;
+
+    tableEl.innerHTML = list.map(c => `
+      <tr class="${wish.includes(c.code) ? "in-wish" : ""}">
+        <td>${c.code}</td>
+        <td>${c.type}</td>
+        <td>${c.name}</td>
+        <td>${c.time}</td>
+        <td>${c.seats}</td>
+        <td id="left-${c.code}"></td>
+        <td class="${rateClass(c.rate)}">${c.rate} : 1</td>
+        <td><button id="btn-${c.code}" data-code="${c.code}"></button></td>
+      </tr>`).join("");
+  }
+
+  // ---------- 7. 관심과목 패널 그리기 ----------
+  function drawWish() {
+    document.getElementById("wishCount").textContent = `${wish.length} / ${MAX_WISH}`;
+    if (wish.length === 0) {
+      wishEl.innerHTML = `<div class="empty">과목표에서 [담기]를 눌러 관심과목을 추가하세요.</div>`;
+      return;
+    }
+    wishEl.innerHTML = wish.map(code => {
+      const c = findCourse(code);
+      return `<div class="wish-item">
+        <div class="wish-info">
+          <b>${c.name}</b>
+          <span>${c.code} · ${c.time} · <span class="${rateClass(c.rate)}">${c.rate} : 1</span>
+            · 남은 자리 <span id="wleft-${c.code}">${c.seats}</span></span>
+        </div>
+        <button id="wbtn-${c.code}" data-code="${c.code}"></button>
+      </div>`;
+    }).join("");
+  }
+
+  // ---------- 8. 추천 순서 그리기 (관심과목만, 경쟁률 높은 순) ----------
+  function drawRecommend() {
+    const ol = document.getElementById("recommendList");
+    if (wish.length === 0) { ol.innerHTML = `<li class="empty">관심과목을 담으면 순서를 추천해요.</li>`; return; }
+    ol.innerHTML = wish.map(findCourse)
+      .sort((a, b) => b.rate - a.rate)
+      .map(c => `<li>${c.name} · 약 ${(c.closeAt / 1000).toFixed(1)}초 후 마감</li>`)
+      .join("");
+  }
+
+  // ---------- 9. 숫자와 버튼만 갱신 (매 프레임 실행) ----------
+  function updateLive() {
+    courses.forEach(c => {
+      const left = seatsLeft(c);
+      const closed = isOpen && left === 0;
+      const s = buttonState(c);
+
+      // 과목표의 칸
+      const leftCell = document.getElementById("left-" + c.code);
+      if (leftCell) {
+        leftCell.textContent = closed ? "마감" : left;
+        leftCell.className = closed ? "closed" : "";
+      }
+      setButton(document.getElementById("btn-" + c.code), s);
+
+      // 관심과목 패널의 칸
+      const wLeft = document.getElementById("wleft-" + c.code);
+      if (wLeft) wLeft.textContent = closed ? "마감" : left;
+      setButton(document.getElementById("wbtn-" + c.code), s);
+    });
+  }
+
+  // ---------- 10. 신청 내역 그리기 ----------
+  function drawResults() {
+    const list = Object.entries(applied);
+    const ul = document.getElementById("resultList");
+    const summary = document.getElementById("summary");
+    if (list.length === 0) {
+      ul.innerHTML = `<li class="empty">아직 신청한 과목이 없습니다.</li>`;
+      summary.textContent = "";
+      return;
+    }
+    ul.innerHTML = list.map(([code, r]) => {
+      const name = findCourse(code).name;
+      if (r.ms === "-") return `<li>${name} : <span class="fail">실패(미신청)</span></li>`;
+      return `<li>${name} : <span class="${r.ok ? "ok" : "fail"}">${r.ok ? "성공" : "실패(마감)"}</span> · ${r.ms} ms</li>`;
+    }).join("");
+
+    // 요약 : 성공 개수(관심과목 기준), 첫 클릭 반응속도
+    const okCount = list.filter(([, r]) => r.ok).length;
+    const times = list.map(([, r]) => r.ms).filter(x => typeof x === "number");
+    const first = times.length ? Math.min(...times) + " ms" : "-";
+    summary.textContent =
+      `성공 ${okCount} / ${wish.length}과목 · 첫 신청 반응속도 ${first}` +
+      (okCount === wish.length ? " · 올클 성공!" : "");
+  }
+
+  // 화면 전체 다시 그리기 (담기/빼기, 시작, 리셋할 때)
+  function drawAll() {
+    drawTable();
+    drawWish();
+    drawRecommend();
+    drawResults();
+    updateLive();
+  }
+
+  // ---------- 11. 신청하기 (버튼 클릭 또는 코드 입력) ----------
+  function apply(code) {
+    if (!isOpen) return;
+    const c = findCourse(code);
+    if (!c) { alert("없는 과목코드입니다."); return; }
+    if (!wish.includes(c.code)) { alert("관심과목에 담은 과목만 신청할 수 있어요."); return; }
+    if (applied[c.code]) { alert("이미 신청한 과목입니다."); return; }
+
+    // 오픈 순간부터 지금까지 걸린 시간 (ms)
+    const ms = Math.round(performance.now() - openTime);
+    const ok = seatsLeft(c) > 0;   // 자리가 남아 있으면 성공
+    applied[c.code] = { ok, ms };
+
+    updateLive();
+    drawResults();
+
+    // 관심과목을 모두 처리하면 종료
+    if (Object.keys(applied).length === wish.length) finish();
+  }
+
+  // ---------- 12. 매 프레임마다 타이머와 숫자 갱신 ----------
+  function tick() {
+    const now = performance.now();
+
+    if (now < openTime) {
+      // 오픈 전 : 남은 시간 표시 (소수점 한 자리)
+      timerEl.textContent = ((openTime - now) / 1000).toFixed(1);
+    } else {
+      // 오픈 순간 : 버튼 활성화
+      if (!isOpen) {
+        isOpen = true;
+        timerEl.classList.add("open");
+        statusEl.textContent = "신청 오픈! 빠르게 신청하세요.";
+        codeBtn.disabled = false;
+      }
+      timerEl.textContent = "+" + ((now - openTime) / 1000).toFixed(1);
+    }
+
+    updateLive();
+
+    // 관심과목이 모두 마감되면 종료
+    const allClosed = isOpen && wish.every(code => seatsLeft(findCourse(code)) === 0);
+    if (allClosed) { finish(); return; }
+    frameId = requestAnimationFrame(tick);
+  }
+
+  // 연습 종료 : 신청 못 한 과목은 실패로 기록
+  function finish() {
+    cancelAnimationFrame(frameId);
+    wish.forEach(code => {
+      if (!applied[code]) applied[code] = { ok: false, ms: "-" };
+    });
+    const okCount = Object.values(applied).filter(r => r.ok).length;
+    statusEl.textContent = `연습 종료 · ${okCount} / ${wish.length}과목 성공`;
+    codeBtn.disabled = true;
+    isOpen = false;
+    updateLive();
+    drawResults();
+  }
+
+  // ---------- 13. 시작 / 다시 하기 ----------
+  function start() {
+    if (wish.length === 0) { alert("관심과목을 1개 이상 담아주세요."); return; }
+    reset();
+    started = true;
+    // performance.now()는 컴퓨터 시계를 바꿔도 영향을 받지 않음
+    openTime = performance.now() + COUNTDOWN_MS;
+    startBtn.disabled = true;
+    statusEl.textContent = "곧 신청이 열립니다. 준비하세요!";
+    drawAll();
+    frameId = requestAnimationFrame(tick);
+  }
+
+  function reset() {
+    cancelAnimationFrame(frameId);
+    openTime = null;
+    started = false;
+    isOpen = false;
+    applied = {};
+    timerEl.textContent = "--.-";
+    timerEl.classList.remove("open");
+    statusEl.textContent = "관심과목을 담고 연습 시작을 눌러주세요.";
+    startBtn.disabled = false;
+    codeBtn.disabled = true;
+    codeInput.value = "";
+    drawAll();
+  }
+
+  // ---------- 14. 버튼과 입력창에 기능 연결 ----------
+  startBtn.addEventListener("click", start);
+  document.getElementById("resetBtn").addEventListener("click", reset);
+  document.getElementById("searchInput").addEventListener("input", () => { drawTable(); updateLive(); });
+  document.getElementById("typeFilter").addEventListener("change", () => { drawTable(); updateLive(); });
+
+  // 과목표·관심과목의 버튼 클릭 처리 (한 곳에서 받음)
+  function onListClick(e) {
+    const btn = e.target.closest("button[data-code]");
+    if (!btn || btn.disabled) return;
+    if (started) apply(btn.dataset.code);   // 연습 중 → 신청
+    else toggleWish(btn.dataset.code);      // 연습 전 → 담기/빼기
+  }
+  tableEl.addEventListener("click", onListClick);
+  wishEl.addEventListener("click", onListClick);
+
+  // 코드 입력 후 버튼 클릭 또는 Enter 키로 신청
+  codeBtn.addEventListener("click", () => { apply(codeInput.value.trim()); codeInput.value = ""; });
+  codeInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") { apply(codeInput.value.trim()); codeInput.value = ""; }
+  });
+
+  // 처음 화면 그리기
+  drawAll();
+</script>
+</body>
+</html>
